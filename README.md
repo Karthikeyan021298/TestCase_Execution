@@ -18,8 +18,7 @@ Usage :
   PASSWORD: "<password>"
   TEST_CASE_NAME: "<testCase_name>"  # Replace testCase_name with the actual name of the testCase.
   CHECK_COMPLETION_DELAY: "10" # Polling interval (in sec) for checking testCase completion.
-  JSON_BODY: |   
-  
+  DEVICES: |
     [
       {
         "name": "W1",
@@ -38,6 +37,7 @@ Usage :
         "deviceToUse": "QA-user33"
       }
     ]
+
   
 2.Currently the workflow needs to be executed manually.
 3.This workflow will perform multiple jobs like 
