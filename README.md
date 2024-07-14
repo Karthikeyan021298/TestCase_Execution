@@ -38,23 +38,22 @@ This GitHub workflow automates the execution of a test case on TekVizion TAP and
          "deviceToUse": "QA-user33"
        }
      ]
+   
 Note: Add device objects to the array as required for your specific test case execution.
 
-Manually execute this workflow for now.
+# Test Case Execution Workflow
 
-This workflow consists of the following jobs:
+This workflow is designed to automate the process of executing test cases. The workflow consists of the following jobs:
 
-identifyTestcase: Lists all available test cases and retrieves the test case ID for the specified test case.
-executeTestCase: Starts the specified test case execution.
-checkcompletion: Periodically checks whether the test case execution is completed.
-workflowstatus: Marks the workflow as success or failure based on the test case execution result.
-Customers should trigger this workflow from their own workflow.
+1. **identifyTestcase**: Lists all available test cases and retrieves the test case ID for the specified test case.
+2. **executeTestCase**: Starts the specified test case execution.
+3. **checkcompletion**: Periodically checks whether the test case execution is completed.
+4. **workflowstatus**: Marks the workflow as success or failure based on the test case execution result.
 
-Based on the outcome (workflow_report), customers can trigger subsequent workflows as needed.
+### Triggering Subsequent Workflows
 
-Invoke subsequent workflows based on the output stored as ${{ steps.finalresult.outputs.workflow_report }}.
+Invoke subsequent workflows based on the output stored as `${{ steps.finalresult.outputs.workflow_report }}`. Customers can use this output to trigger additional workflows as needed.
 
-Note
-Currently, this workflow needs to be manually invoked.
-Customers should update the event trigger to automate the workflow invocation.
-Adjust the CHECK_COMPLETION_DELAY based on the expected completion time of your test case to optimize status checking intervals.
+### Note
+
+Add device objects to the array as required for your specific test case execution. Manually execute this workflow for now. Customers should trigger this workflow from their own workflow.
