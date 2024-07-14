@@ -18,7 +18,7 @@ Usage :
   PASSWORD: "<password>"
   TEST_CASE_NAME: "<testCase_name>"  # Replace testCase_name with the actual name of the testCase.
   CHECK_COMPLETION_DELAY: "10" # Polling interval (in sec) for checking testCase completion.
-  DEVICES: JSON_BODY: |   
+  JSON_BODY: |   
   
     [
       {
