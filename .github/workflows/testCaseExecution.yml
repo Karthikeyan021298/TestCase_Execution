@@ -1,0 +1,217 @@
+name: Execute Teste Case.
+
+on:
+  workflow_dispatch:        
+env:
+  TAP_URL: "http://40.88.24.26:8080/onPOINT"  # Replace IP address and user credentials with details of your respective environment.
+  USERNAME: "administrator@tekvizion.com"    
+  PASSWORD: "$Tekvizion12345^&"
+  TEST_CASE_NAME: "GitHub Actions Testing"  # Replace project_name with the actual name of the project.
+  DEVICES: |
+    [
+      {
+        "name": "W1",
+        "type": "Phone",
+        "vendor": "Cisco",
+        "model": "WEBEX-TEAMS",
+        "submodel": "",
+        "deviceToUse": "40 Webex"
+      },
+      {
+        "name": "U1",
+        "type": "User",
+        "vendor": "",
+        "model": "",
+        "submodel": "",
+        "deviceToUse": "QA-user33"
+      }
+    ]
+
+  CHECK_COMPLETION_DELAY: "10" # Polling interval (in sec) for checking project completion.
+  PASS_PERCENT_THRESHOLD: "90" # The flow will fail if pass% is less than the threshold value configured..
+jobs:
+  identifyTestcase:
+    runs-on: ubuntu-latest
+    outputs:  
+      accessToken: ${{ steps.auth.outputs.access_token }}
+      testCase_id: ${{ steps.getTestCaseid.outputs.testCase_id }}
+      testCase_status: ${{ steps.getTestCaseid.outputs.testCase_status}}
+    steps:
+    - name: login
+      id: auth
+      run: |
+        LOGIN_API_URL="$TAP_URL/api/login"
+        #get access token
+        response=$(curl -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}" \
+        "$LOGIN_API_URL")
+        #echo "API Response: $response"
+        accessToken=$(echo "$response" | jq -r '.response.accessToken')
+        echo "Authentication successful."
+        # Set the accessToken as an output variable
+        echo "access_token=$accessToken" >> "$GITHUB_OUTPUT"
+    - name: List all and select Test case
+      id: getTestCaseid
+      run: |  
+        # API URL for getting the testCase list
+        API_URL="$TAP_URL/v1/testCases/.*"
+        ACCESS_TOKEN=${{ steps.auth.outputs.access_token }}
+
+        # Execute API to get all testCase list
+        resp1=$(curl -v -X GET \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            "$API_URL"    )
+        echo "API Response for getTestcaselist: $resp1" 
+        testCases=$(echo "$resp1" | jq -r '.response.testCases')
+        echo "API Response for testCase list: $testCases" 
+        #get the testCase id for the testCase name as defined for the variable TEST_CASE_NAME
+        testCase_id=$(echo "$testCases" | jq -r --arg name "$TEST_CASE_NAME" '.[] | select(.name == $name) | .id')
+        #get the test Case status for the test Case name as defined for the variable TEST_CASE_NAME
+        testCase_status=$(echo "$testCases" | jq -r --arg name "$TEST_CASE_NAME" '.[] | select(.name == $name) | .status')
+        # Print the test case ID and testCase status
+        #echo "testCase ID for testCase- $TEST_CASE_NAME is: $testCase_id"
+        #set the testCase id and status as out put
+        
+        if [ -n "$testCase_id" ]; then
+          echo "testCase_id for testCase '$TEST_CASE_NAME' is: $testCase_id"
+          echo "testCase status for testCase- $TEST_CASE_NAME is: $testCase_status"
+          echo "testCase_id=$testCase_id" >> "$GITHUB_OUTPUT"
+          echo "testCase_status=$testCase_status" >> "$GITHUB_OUTPUT"
+        else
+          echo "Validation failed. Could not find the details of the given testCase."
+          exit 1  
+        fi
+
+  executeTestCase:
+    runs-on: ubuntu-latest
+    needs: identifyTestcase
+    outputs:  
+      accessToken: ${{ steps.auth.outputs.access_token }}
+    steps:
+    - name: login
+      id: auth1
+      run: |
+        LOGIN_API_URL="$TAP_URL/api/login"
+        #get access token
+        response=$(curl -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}" \
+        "$LOGIN_API_URL")
+        #echo "API Response: $response"
+        accessToken=$(echo "$response" | jq -r '.response.accessToken')
+        echo "Authentication successful."
+        # Set the accessToken as an output variable
+        echo "access_token=$accessToken" >> "$GITHUB_OUTPUT"
+        
+    - name: execute Test case
+      id: executeTestCase
+      run: |
+        # API URL for executing the test case
+            API_URL_RUN="$TAP_URL/v1/testCases/${{ needs.identifyTestcase.outputs.testCase_id}}/execute"
+            ACCESS_TOKEN=${{ steps.auth1.outputs.access_token }}
+        
+            # JSON object to be sent in the request body
+                    
+                
+            # Execute API to send the JSON object as request body
+            echo "API Request Body: $DEVICES"
+            resp=$(curl -v -X POST \
+                -H "Authorization: Bearer $ACCESS_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$DEVICES" \
+                "$API_URL_RUN")
+        
+            # Output the response if needed
+            echo "API Response: $resp"
+  
+         
+  checkcompletion:
+      needs: [identifyTestcase, executeTestCase]
+      runs-on: ubuntu-latest
+      outputs:  
+          executionResult: ${{ steps.collectexecutiondata.outputs.executionResult }}      
+      steps:
+        - name: login to check test case completion
+          id: auth2
+          run: |
+            LOGIN_API_URL="$TAP_URL/api/login"
+            #get access token
+            response=$(curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}" \
+            "$LOGIN_API_URL")
+            echo "API Response: $response"
+            accessToken=$(echo "$response" | jq -r '.response.accessToken')
+            #echo "Access Token: $accessToken"
+            # Set the accessToken as an output variable
+            echo "access_token=$accessToken" >> "$GITHUB_OUTPUT"
+        - name: check testCase completion
+          id: testCasecompletion  
+          run: |
+                testCase_id=${{ needs.identifyTestcase.outputs.testCase_id }}
+                # Example API endpoint for additional actions
+                API_URL="$TAP_URL/v1/testCases/$testCase_id/status"    
+                ACCESS_TOKEN=${{ steps.auth2.outputs.access_token }}
+                while true; do
+                # Execute API periodically to check the  project completion status 
+                resp_status=$(curl -v -X GET \
+                    -H "Authorization: Bearer $ACCESS_TOKEN" \
+                    -H "Content-Type: application/json" \
+                    "$API_URL"    )
+                echo "API Response for gettestcasestatus: $resp_status" 
+                status=$(echo "$resp_status" | jq -r '.response.status')
+                echo "Execution data for Test case - $TEST_CASE_NAME is: $status"
+                # Example: Loop to periodically check testCase status until complete
+                if [ "$status" == "COMPLETED" ]; then
+                    break
+                  fi
+                  sleep $CHECK_COMPLETION_DELAY  # Wait for defined seconds before checking again
+                done
+  
+        - name: Get case result
+          id: collectexecutiondata 
+          run: |
+              testCase_id=${{ needs.identifyTestcase.outputs.testCase_id }}
+              # Example API endpoint for additional actions
+              API_URL="$TAP_URL/v1/testCases/$testCase_id/result"
+    
+              # Read the access token from the step output 
+              ACCESS_TOKEN=${{ steps.auth2.outputs.access_token }}
+    
+              # Execute API to get the execution result.
+              resp_tstatus=$(curl -v -X GET \
+                  -H "Authorization: Bearer $ACCESS_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  "$API_URL"    )
+              echo "API Response for execution result: $resp_tstatus" 
+              executionResult=$(echo "$resp_tstatus" | jq -r '.response.subResult.status')
+              echo "executionResult=$executionResult" >> "$GITHUB_OUTPUT"
+
+  workflowstatus:
+                if: success() || failure()
+                needs: [identifyTestcase, executeTestCase, checkcompletion]
+                runs-on: ubuntu-latest
+                outputs: 
+                  workflow_report: ${{ steps.finalresult.outputs.status }}
+                steps:
+                  - name: workflow Execution conclusion
+                    id: finalresult
+                    run: | 
+                      executionResult=${{ needs.checkcompletion.outputs.executionResult }}
+                      echo "Execution Result: $executionResult"
+                      
+                      if [ "$executionResult" == "PASSED" ]; then
+                        echo "workflow_report=success" >> "$GITHUB_OUTPUT"
+                      else
+                        echo "workflow_report=failure" >> "$GITHUB_OUTPUT"
+                        exit 1
+                      fi
+                  
+                  - name: Show workflow execution status
+                    id: workflowconclusionstatus
+                    if: always()
+                    run: |
+                      echo "Overall Workflow Execution Report: ${{ steps.finalresult.outputs.workflow_report }}"
+              
